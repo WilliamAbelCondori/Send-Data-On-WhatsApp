@@ -1,42 +1,59 @@
 package com.example.senddataonwhatsapp;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
+import android.graphics.pdf.PdfDocument;
+import android.media.MediaScannerConnection;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.telephony.PhoneNumberUtils;
+import android.os.Environment;
+import android.os.Handler;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.Toast;
+
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputLayout;
-import com.squareup.picasso.Callback;
-import com.squareup.picasso.Picasso;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity
 {
+    private static final String TAG = "MainActivity";
     //Mainactivity
+    private ScrollView scrollView;
+    private LinearLayout linearLayout;
     private ImageView imageView;
     private ProgressBar progressBar;
     private TextInputLayout textInputLayoutMobile;
@@ -45,6 +62,13 @@ public class MainActivity extends AppCompatActivity
 
     //  network
     AlertDialog alertDialog;
+
+    File pictureDirectory;
+    Bitmap bitmap;
+    String date;
+    String finalTime;
+
+    ProgressDialog progressDialog;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -56,14 +80,16 @@ public class MainActivity extends AppCompatActivity
         alertMessage();
         registerReceiver(broadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 
-
         setContentView(R.layout.activity_main);
 
+        scrollView = findViewById(R.id.idScrollview);
+        linearLayout = findViewById(R.id.idLinearLayoutMainActivity);
         imageView = findViewById(R.id.imageview);
         progressBar = findViewById(R.id.progresbar);
         textInputLayoutMobile = findViewById(R.id.idTextInputLayoutMobileMainActivity);
         materialButtonSendImage = findViewById(R.id.idButtonSendImageMainActivity);
         materialButtonSendPdf = findViewById(R.id.idButtonSendPdfMainActivity);
+        progressDialog = new ProgressDialog(this);
 
         textInputLayoutMobile.getEditText().setOnTouchListener(new View.OnTouchListener()
         {
@@ -77,101 +103,122 @@ public class MainActivity extends AppCompatActivity
 
         materialButtonSendImage.setOnClickListener(new View.OnClickListener()
         {
+            @RequiresApi(api = Build.VERSION_CODES.KITKAT)
             @Override
             public void onClick(View v)
             {
-                sendImage();
+                try
+                {
+                    textInputLayoutMobile.setErrorEnabled(false);
+                    String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
+
+                    if(temp.length() != 10)
+                    {
+                        textInputLayoutMobile.setError("Enter WhatsApp Number");
+                        textInputLayoutMobile.requestFocus();
+                        return;
+                    }
+
+                    final String mobileNumber = "91"+temp;
+
+                    progressDialog.setMessage("Sending...");
+                    progressDialog.setCancelable(false);
+                    progressDialog.show();
+
+                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+
+                    new Handler().postDelayed(new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            sendLayoutImage("image", mobileNumber);
+                        }
+                    },1000);
+
+                }
+                catch (Exception e)
+                {
+                    progressDialog.dismiss();
+                    // TODO: handle exception
+                }
             }
         });
 
         materialButtonSendPdf.setOnClickListener(new View.OnClickListener()
         {
+            @RequiresApi(api = Build.VERSION_CODES.KITKAT)
             @Override
             public void onClick(View v)
             {
-                sendPdf();
+                try
+                {
+                    textInputLayoutMobile.setErrorEnabled(false);
+                    String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
+
+                    if(temp.length() != 10)
+                    {
+                        textInputLayoutMobile.setError("Enter WhatsApp Number");
+                        textInputLayoutMobile.requestFocus();
+                        return;
+                    }
+
+                    final String mobileNumber = "91"+temp;
+
+                    progressDialog.setMessage("Sending...");
+                    progressDialog.setCancelable(false);
+                    progressDialog.show();
+
+                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+
+                    new Handler().postDelayed(new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            sendLayoutImage("pdf", mobileNumber);
+                        }
+                    },1000);
+
+                }
+                catch (Exception e)
+                {
+                    progressDialog.dismiss();
+                    // TODO: handle exception
+                }
             }
         });
 
         isWriteStoragePermissionGranted();
 
 
-        String image_url = "http://images.cartradeexchange.com//img//800//vehicle//Honda_Brio_562672_5995_6_1438153637072.jpg";
+//        String image_url = "http://images.cartradeexchange.com//img//800//vehicle//Honda_Brio_562672_5995_6_1438153637072.jpg";
+//        String image_url = "http://www.mymanagerpro.com/assets/images/home/man-2.png";
 
-        Picasso.get().load(image_url).into(imageView, new Callback() {
-            @Override
-            public void onSuccess()
-            {
-                progressBar.setVisibility(View.GONE);
-                imageView.setVisibility(View.VISIBLE);
-                textInputLayoutMobile.setVisibility(View.VISIBLE);
-                materialButtonSendImage.setVisibility(View.VISIBLE);
-                materialButtonSendPdf.setVisibility(View.VISIBLE);
-            }
-
-            @Override
-            public void onError(Exception e) {
-
-            }
-        });
-    }
-
-    public  boolean isWriteStoragePermissionGranted()
-    {
-        if (Build.VERSION.SDK_INT >= 23)
-        {
-            if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    == PackageManager.PERMISSION_GRANTED)
-            {
-                Log.v("TAG","Permission is granted2");
-                return true;
-            }
-            else
-            {
-
-                Log.v("TAG","Permission is revoked2");
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
-                return false;
-            }
-        }
-        else
-        { //permission is automatically granted on sdk<23 upon installation
-            Log.v("TAG","Permission is granted2");
-            return true;
-        }
-    }
-
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
-    {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        switch (requestCode) {
-            case 2:
-                Log.d("TAG", "External storage2");
-                if(grantResults[0]== PackageManager.PERMISSION_GRANTED){
-                    Log.v("TAG","Permission: "+permissions[0]+ "was "+grantResults[0]);
-                    //resume tasks needing this permission
-                }else{
-                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
-
-                }
-                break;
-
-            case 3:
-                Log.d("TAG", "External storage1");
-                if(grantResults[0]== PackageManager.PERMISSION_GRANTED){
-                    Log.v("TAG","Permission: "+permissions[0]+ "was "+grantResults[0]);
-                    //resume tasks needing this permission
-                }else{
-                }
-                break;
-        }
+//        Picasso.get().load(image_url).into(imageView, new Callback()
+//        {
+//            @Override
+//            public void onSuccess()
+//            {
+//                progressBar.setVisibility(View.GONE);
+//                imageView.setVisibility(View.VISIBLE);
+//                textInputLayoutMobile.setVisibility(View.VISIBLE);
+//                materialButtonSendImage.setVisibility(View.VISIBLE);
+//                materialButtonSendPdf.setVisibility(View.VISIBLE);
+//            }
+//
+//            @Override
+//            public void onError(Exception e)
+//            {
+//
+//            }
+//        });
     }
 
 
     //Mainactivity
-
     BroadcastReceiver broadcastReceiver = new BroadcastReceiver()
     {
         @Override
@@ -189,8 +236,6 @@ public class MainActivity extends AppCompatActivity
             }
         }
     };
-
-
 
     public void alertMessage()
     {
@@ -231,135 +276,324 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    //send image
-    private void sendImage()
+//    *******************************************
+
+//    convert layout file to image and sent it
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private void sendLayoutImage(String media, String mobileNumber)
     {
-//        PackageManager packageManager = getPackageManager();
-//
-//        Uri uri = Uri.parse("smsto:" + "9067649737");
-//
-//        try
-//        {
-//            Intent intent = new Intent(Intent.ACTION_SENDTO, uri);
-////            intent.setType("text/plain");
-//            intent.setDataAndType(uri, "text/plain");
-//
-//            String message = "Testing Whatsapp";
-//
-//            PackageInfo packageInfo = packageManager.getPackageInfo("com.whatsapp", PackageManager.GET_META_DATA);
-//
-//            intent.putExtra(Intent.EXTRA_TEXT, message);
-//            intent.setPackage("com.whatsapp");
-//            startActivity(Intent.createChooser(intent, "Share With"));
-//        }
-//        catch (PackageManager.NameNotFoundException e)
-//        {
-//            Toast.makeText(getApplicationContext(), "Whatsapp not installed", Toast.LENGTH_SHORT).show();
-//        }
+        File file = saveBitmap(this, scrollView, media);
 
-//        Uri uri = Uri.parse("smsto:" + "9067649737");
-//        Intent i = new Intent(Intent.ACTION_SENDTO, uri);
-//        i.setType("text/plain");
-//        i.putExtra("sms_body","HI ...");
-//        i.setPackage("com.whatsapp");
-//        startActivity(Intent.createChooser(i, "ggg"));
-
-
-//        String smsNumber = "9067649737"; // E164 format without '+' sign
-//        Intent sendIntent = new Intent(Intent.ACTION_SEND);
-//        sendIntent.setType("text/plain");
-//        sendIntent.putExtra(Intent.EXTRA_TEXT, "This is my text to send.");
-//        sendIntent.putExtra("jid", smsNumber + "@s.whatsapp.net"); //phone number without "+" prefix
-//        sendIntent.setPackage("com.whatsapp");
-//        if (sendIntent.resolveActivity(getPackageManager()) == null) {
-//            Toast.makeText(this, "Error/n", Toast.LENGTH_SHORT).show();
-//            return;
-//        }
-//        startActivity(sendIntent);
-
-//        String toNumber = "+91 75714 24135"; // contains spaces.
-//        toNumber = toNumber.replace("+", "").replace(" ", "");
-//
-//        Intent sendIntent = new Intent("android.intent.action.MAIN");
-//        sendIntent.putExtra("jid", toNumber + "@s.whatsapp.net");
-//        sendIntent.putExtra(Intent.EXTRA_TEXT, "message");
-//        sendIntent.setAction(Intent.ACTION_SEND);
-//        sendIntent.setPackage("com.whatsapp");
-//        sendIntent.setType("text/plain");
-//        startActivity(sendIntent);
-
-//        String smsNumber = "917517424135";
-//        boolean isWhatsappInstalled = whatsappInstalledOrNot("com.whatsapp");
-//        if (isWhatsappInstalled) {
-//
-//            Intent sendIntent = new Intent("android.intent.action.MAIN");
-//            sendIntent.setType("text/plain");
-//
-//            sendIntent.setComponent(new ComponentName("com.whatsapp", "com.whatsapp.Conversation"));
-//            sendIntent.putExtra("jid", PhoneNumberUtils.stripSeparators(smsNumber) + "@s.whatsapp.net");//phone number without "+" prefix
-//            sendIntent.putExtra(Intent.EXTRA_TEXT, "gAaaaaaaaa");
-//            startActivity(sendIntent);
-//        } else {
-//            Uri uri = Uri.parse("market://details?id=com.whatsapp");
-//            Intent goToMarket = new Intent(Intent.ACTION_VIEW, uri);
-//            Toast.makeText(this, "WhatsApp not Installed",
-//                    Toast.LENGTH_SHORT).show();
-//            startActivity(goToMarket);
-//        }
-//    }
-//
-//    private boolean whatsappInstalledOrNot(String uri) {
-//        PackageManager pm = getPackageManager();
-//        boolean app_installed = false;
-//        try {
-//            pm.getPackageInfo(uri, PackageManager.GET_ACTIVITIES);
-//            app_installed = true;
-//        } catch (PackageManager.NameNotFoundException e) {
-//            app_installed = false;
-//        }
-//        return app_installed;
-
-//        Uri imageUri = Uri.parse("https://cdn.mos.cms.futurecdn.net/huWFavoNm5ECK8UL23DG6N-650-80.jpg");
-
-//        String s = "https://internshala.com/cached_uploads/logo%2F5ee5cbc78f5171592118215.png";
-
-        textInputLayoutMobile.setErrorEnabled(false);
-        String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
-
-        if(temp.length() != 10)
+        if(file != null)
         {
-            textInputLayoutMobile.setError("Enter Whatsapp Number");
-            textInputLayoutMobile.requestFocus();
-            return;
+//            toastMessage("File Successfully Saved "+file);
+            if(media.equals("image"))
+            {
+                sendImage(file, mobileNumber);
+            }
+            else
+            {
+                File filePdf = createDocument();
+                sendPdf(filePdf, mobileNumber);
+            }
+
+        }
+        else
+        {
+            progressDialog.dismiss();
+            toastMessage("File Not Successfully Saved");
+        }
+    }
+
+    private File saveBitmap(Context context, View linearLayoutView, String media)
+    {
+        if(media.equals("image"))
+        {
+            pictureDirectory = new File(Environment.getExternalStorageDirectory() + "/SendDataWhatsApp/Images");
+        }
+        else
+        {
+            pictureDirectory = new File(Environment.getExternalStorageDirectory() + "/SendDataWhatsApp/PDF");
+        }
+//        File pictureDirectory = new File(Environment.getExternalStorageDirectory() + "/SendDataWhatsApp");
+
+        if(!pictureDirectory.exists())
+        {
+            pictureDirectory.mkdirs();
         }
 
-        String mobileNumber = "91"+temp;
+        Date c = Calendar.getInstance().getTime();
+        System.out.println("Current time => " + c);
 
-        BitmapDrawable bitmapDrawable = ((BitmapDrawable) imageView.getDrawable());
-        Bitmap bitmap = bitmapDrawable .getBitmap();
-        String bitmapPath = MediaStore.Images.Media.insertImage(getContentResolver(), bitmap,"some title", null);
-        Uri bitmapUri = Uri.parse(bitmapPath);
+        String dateAndTime = String.valueOf(c);
+
+        String[] temp = dateAndTime.split(" ");
+
+        System.out.println("Current timsse => " + Arrays.toString(temp));
+
+        date = temp[2] +"_"+ temp[1] +"_" + temp[5];
+
+        String time = temp[3];
+
+        String[] temptime = time.split(":");
+
+        finalTime = temptime[0] + "_" + temptime[1] + "_" + temptime[2];
+
+        String fileName = pictureDirectory.getPath() +File.separator+ "Gautam_"+date+"_"+finalTime+".png";
+
+        Log.d(TAG, "saveBitmap: "+pictureDirectory.getPath());
+
+//        String fileName = "image_"+System.currentTimeMillis()+".png";
+
+        File pictureFile = new File(fileName);
+
+        bitmap = getBitmapFromView(linearLayoutView);
+
+        if(media.equals("image"))
+        {
+            try
+            {
+                pictureFile.createNewFile();
+                FileOutputStream fileOutputStream = new FileOutputStream(pictureFile);
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fileOutputStream);
+                fileOutputStream.flush();
+                fileOutputStream.close();
+            }
+            catch (IOException e)
+            {
+                progressDialog.dismiss();
+                Log.d(TAG, "saveBitmap: "+e);
+            }
+        }
+
+        scanGallery(context, pictureFile.getAbsolutePath());
+
+        return pictureFile;
+    }
+
+    //create bitmap from view and returns it
+    private Bitmap getBitmapFromView(View view)
+    {
+        Bitmap returnedBitmap = Bitmap.createBitmap(
+                scrollView.getChildAt(0).getWidth(),
+                scrollView.getChildAt(0).getHeight(),
+                Bitmap.Config.ARGB_8888
+        );
+
+        Canvas canvas = new Canvas(returnedBitmap);
+
+        Drawable drawable = view.getBackground();
+
+        if(drawable != null)
+        {
+            drawable.draw(canvas);
+        }
+        else
+        {
+            canvas.drawColor(Color.WHITE);
+        }
+
+        view.draw(canvas);
+
+        return returnedBitmap;
+    }
+
+    //scanning gallery
+    private void scanGallery(Context cntx, String path)
+    {
+        try
+        {
+            MediaScannerConnection.scanFile(
+                    cntx,
+                    new String[] { path },
+                    null,
+                    new MediaScannerConnection.OnScanCompletedListener()
+                    {
+                    public void onScanCompleted(String path, Uri uri)
+                    {
+
+                    }
+            });
+        }
+        catch (Exception e)
+        {
+            progressDialog.dismiss();
+            e.printStackTrace();
+        }
+    }
+
+    //send image
+    private void sendImage(File file, String mobileNumber)
+    {
+        //for sending imageview
+
+//        BitmapDrawable bitmapDrawable = ((BitmapDrawable) imageView.getDrawable());
+//        Bitmap bitmap = bitmapDrawable .getBitmap();
+//        String bitmapPath = MediaStore.Images.Media.insertImage(getContentResolver(), bitmap,"some title", null);
+//        Uri bitmapUri = Uri.parse(bitmapPath);
+
+        progressDialog.dismiss();
+
+        String link = "http://www.mymanagerpro.com";
 
         Intent sendIntent = new Intent("android.intent.action.MAIN");
         sendIntent.setAction(Intent.ACTION_SEND);
         sendIntent.setPackage("com.whatsapp");
         sendIntent.setType("text/plain");
         sendIntent.putExtra("jid", mobileNumber + "@s.whatsapp.net");// here 91 is country code
-        sendIntent.putExtra(Intent.EXTRA_TEXT, "From My Manager Pro...");
+        sendIntent.putExtra(Intent.EXTRA_TEXT, "From My Manager Pro\n"+link);
 
-        sendIntent.putExtra(Intent.EXTRA_STREAM, bitmapUri);
+        sendIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse(String.valueOf(file)));
+//        sendIntent.putExtra(Intent.EXTRA_STREAM, bitmapUri);
         sendIntent.setType("image/*");
         sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
         if(sendIntent.resolveActivity(getPackageManager()) != null)
+        {
             startActivity(sendIntent);
+            progressDialog.dismiss();
+        }
         else
-            Toast.makeText(getApplicationContext(), "Whatsapp Not Installed, Please Install Whatsapp", Toast.LENGTH_SHORT).show();
+        {
+            progressDialog.dismiss();
+            Toast.makeText(getApplicationContext(), "WhatsApp Not Installed, Please Install Whatsapp", Toast.LENGTH_SHORT).show();
+        }
     }
 
     //send pdf
-    private void sendPdf()
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private File createDocument()
     {
+        PdfDocument pdfDocument = new PdfDocument();
+        PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(bitmap.getWidth(), bitmap.getHeight(),1).create();
 
+        PdfDocument.Page page = pdfDocument.startPage(pageInfo);
+        Canvas canvas = page.getCanvas();
+
+        Paint paint = new Paint();
+        paint.setColor(Color.parseColor("#ffffff"));
+        canvas.drawPaint(paint);
+
+        Bitmap bitmapPdf = Bitmap.createScaledBitmap(
+                bitmap,
+                bitmap.getWidth(),
+                bitmap.getHeight(),
+                true
+        );
+
+        paint.setColor(Color.BLUE);
+
+        canvas.drawBitmap(bitmapPdf, 0, 0, null);
+        pdfDocument.finishPage(page);
+
+        String fileName = pictureDirectory.getPath() +File.separator+ "Gautam_"+date+"_"+finalTime+".pdf";
+
+        File filePath = new File(fileName);
+
+        try
+        {
+            pdfDocument.writeTo(new FileOutputStream(filePath));
+        }
+        catch (IOException e)
+        {
+            progressDialog.dismiss();
+            toastMessage("Pdf Not Successfully Saved");
+        }
+
+        // close the document
+        pdfDocument.close();
+
+        return filePath;
     }
+
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private void sendPdf(File file, String mobileNumber)
+    {
+        Intent sendIntent = new Intent("android.intent.action.MAIN");
+        sendIntent.setAction(Intent.ACTION_SEND);
+        sendIntent.setPackage("com.whatsapp");
+        sendIntent.putExtra("jid", mobileNumber + "@s.whatsapp.net");// here 91 is country code
+
+        sendIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse(String.valueOf(file)));
+        sendIntent.setType("application/pdf");
+        sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        if(sendIntent.resolveActivity(getPackageManager()) != null)
+        {
+            startActivity(sendIntent);
+            progressDialog.dismiss();
+        }
+        else
+        {
+            progressDialog.dismiss();
+            Toast.makeText(getApplicationContext(), "WhatsApp Not Installed, Please Install Whatsapp", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+//    Toast Message Method
+    private void toastMessage(String message)
+    {
+        Toast toast = Toast.makeText(
+                getApplicationContext(),
+                message,
+                Toast.LENGTH_SHORT
+                );
+        toast.setGravity(Gravity.CENTER,0,0);
+        toast.show();
+    }
+
+//    permissison
+    public void isWriteStoragePermissionGranted()
+    {
+        if (Build.VERSION.SDK_INT >= 23)
+        {
+            if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED)
+            {
+                Log.v("TAG","Permission is granted2");
+            }
+            else
+            {
+
+                Log.v("TAG","Permission is revoked2");
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
+            }
+        }
+        else
+        { //permission is automatically granted on sdk<23 upon installation
+            Log.v("TAG","Permission is granted2");
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
+    {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case 2:
+                Log.d("TAG", "External storage2");
+                if(grantResults[0]== PackageManager.PERMISSION_GRANTED){
+                    Log.v("TAG","Permission: "+permissions[0]+ "was "+grantResults[0]);
+                    //resume tasks needing this permission
+                }else{
+                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
+
+                }
+                break;
+
+            case 3:
+                Log.d("TAG", "External storage1");
+                if(grantResults[0]== PackageManager.PERMISSION_GRANTED)
+                {
+                    Log.v("TAG","Permission: "+permissions[0]+ "was "+grantResults[0]);
+                    //resume tasks needing this permission
+                }
+                else
+                {
+                }
+                break;
+        }
+    }
+
 
 }
