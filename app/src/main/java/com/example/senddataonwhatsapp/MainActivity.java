@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -32,18 +33,32 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import com.example.senddataonwhatsapp.ModelClasses.TransactionDataInfo;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputLayout;
+import com.itextpdf.text.BaseColor;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.Element;
+import com.itextpdf.text.Font;
+import com.itextpdf.text.Image;
+import com.itextpdf.text.PageSize;
+import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -70,6 +85,15 @@ public class MainActivity extends AppCompatActivity
 
     ProgressDialog progressDialog;
 
+    //dynamic image view
+    LinearLayout linearLayoutDynamicImageView;
+
+    InputMethodManager imm;
+
+
+    //transaction data
+    ArrayList<TransactionDataInfo> transactionDataInfoArrayList;
+
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -91,6 +115,10 @@ public class MainActivity extends AppCompatActivity
         materialButtonSendPdf = findViewById(R.id.idButtonSendPdfMainActivity);
         progressDialog = new ProgressDialog(this);
 
+        imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+
+        transactionDataInfoArrayList = new ArrayList<>();
+
         textInputLayoutMobile.getEditText().setOnTouchListener(new View.OnTouchListener()
         {
             @Override
@@ -109,33 +137,36 @@ public class MainActivity extends AppCompatActivity
             {
                 try
                 {
-                    textInputLayoutMobile.setErrorEnabled(false);
-                    String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
 
-                    if(temp.length() != 10)
-                    {
-                        textInputLayoutMobile.setError("Enter WhatsApp Number");
-                        textInputLayoutMobile.requestFocus();
-                        return;
-                    }
+                    dynamicImageView();
 
-                    final String mobileNumber = "91"+temp;
-
-                    progressDialog.setMessage("Sending...");
-                    progressDialog.setCancelable(false);
-                    progressDialog.show();
-
-                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
-                    imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
-
-                    new Handler().postDelayed(new Runnable()
-                    {
-                        @Override
-                        public void run()
-                        {
-                            sendLayoutImage("image", mobileNumber);
-                        }
-                    },1000);
+//                    textInputLayoutMobile.setErrorEnabled(false);
+//                    String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
+//
+//                    if(temp.length() != 10)
+//                    {
+//                        textInputLayoutMobile.setError("Enter WhatsApp Number");
+//                        textInputLayoutMobile.requestFocus();
+//                        return;
+//                    }
+//
+//                    final String mobileNumber = "91"+temp;
+//
+//                    progressDialog.setMessage("Sending...");
+//                    progressDialog.setCancelable(false);
+//                    progressDialog.show();
+//
+//                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+//                    imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+//
+//                    new Handler().postDelayed(new Runnable()
+//                    {
+//                        @Override
+//                        public void run()
+//                        {
+//                            sendLayoutImage("image", mobileNumber);
+//                        }
+//                    },1000);
 
                 }
                 catch (Exception e)
@@ -161,6 +192,8 @@ public class MainActivity extends AppCompatActivity
                     {
                         textInputLayoutMobile.setError("Enter WhatsApp Number");
                         textInputLayoutMobile.requestFocus();
+                        imm.toggleSoftInputFromWindow(getCurrentFocus().getWindowToken(),0,1);
+
                         return;
                     }
 
@@ -170,7 +203,6 @@ public class MainActivity extends AppCompatActivity
                     progressDialog.setCancelable(false);
                     progressDialog.show();
 
-                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
                     imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
 
                     new Handler().postDelayed(new Runnable()
@@ -178,9 +210,14 @@ public class MainActivity extends AppCompatActivity
                         @Override
                         public void run()
                         {
-                            sendLayoutImage("pdf", mobileNumber);
+//                            sendLayoutImage("pdf", mobileNumber);
+
+                            File filePdf = createPdf();
+                            sendPdf(filePdf, mobileNumber);
                         }
                     },1000);
+
+                    
 
                 }
                 catch (Exception e)
@@ -215,8 +252,54 @@ public class MainActivity extends AppCompatActivity
 //
 //            }
 //        });
+
+        insertTransactionData();
     }
 
+    //insert transaction data
+    private void insertTransactionData()
+    {
+        transactionDataInfoArrayList.add(new TransactionDataInfo("1 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("2 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("3 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("4 June", "test credit", "", "200"));
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("5 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("6 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("7 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("8 June", "test credit", "", "200"));
+
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("9 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("10 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("11 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("12 June", "test credit", "", "200"));
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("13 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("14 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("15 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("16 June", "test credit", "", "200"));
+
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("17 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("18 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("19 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("20 June", "test credit", "", "200"));
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("21 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("22 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("23 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("24 June", "test credit", "", "200"));
+
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("25 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("26 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("27 June", "test credit", "", "200"));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("28 June", "test credit", "", "200"));
+
+        transactionDataInfoArrayList.add(new TransactionDataInfo("29 June", "test credit", "100", ""));
+        transactionDataInfoArrayList.add(new TransactionDataInfo("30 June", "test credit", "100", ""));
+    }
 
     //Mainactivity
     BroadcastReceiver broadcastReceiver = new BroadcastReceiver()
@@ -270,6 +353,8 @@ public class MainActivity extends AppCompatActivity
         //network
         alertDialog.dismiss();
 
+        imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+
         if(broadcastReceiver != null)
         {
             unregisterReceiver(broadcastReceiver);
@@ -278,11 +363,71 @@ public class MainActivity extends AppCompatActivity
 
 //    *******************************************
 
+    //create dynamic view for sending image
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private void dynamicImageView()
+    {
+        textInputLayoutMobile.setErrorEnabled(false);
+        String temp = textInputLayoutMobile.getEditText().getText().toString().trim();
+
+        if(temp.length() != 10)
+        {
+            textInputLayoutMobile.setError("Enter WhatsApp Number");
+            textInputLayoutMobile.requestFocus();
+            imm.toggleSoftInputFromWindow(getCurrentFocus().getWindowToken(),0,1);
+            return;
+        }
+
+        final String mobileNumber = "91"+temp;
+
+        progressDialog.setMessage("Sending...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
+        imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+
+        final androidx.appcompat.app.AlertDialog.Builder alert = new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this);
+        View view = getLayoutInflater().inflate(R.layout.dynamic_image_view,null);
+
+        linearLayoutDynamicImageView = view.findViewById(R.id.idLinearLayoutDynamicImageView);
+        TextView textView = view.findViewById(R.id.idTextViewNameDynamicView);
+
+//        textView.setText("Sanket Sir");
+
+        alert.setView(view);
+
+        final androidx.appcompat.app.AlertDialog alertDialog = alert.create();
+
+        alertDialog.show();
+
+        new Handler().postDelayed(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                sendLayoutImage("image", mobileNumber);
+                alertDialog.dismiss();
+            }
+        },0);
+
+    }
+
 //    convert layout file to image and sent it
     @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     private void sendLayoutImage(String media, String mobileNumber)
     {
-        File file = saveBitmap(this, scrollView, media);
+//        File file = saveBitmap(this, scrollView, media);
+        File file;
+        if(media.equals("pdf"))
+        {
+            file = saveBitmap( scrollView, media);
+        }
+        else
+        {
+            file = saveBitmap( linearLayoutDynamicImageView, media);
+        }
+
+
 
         if(file != null)
         {
@@ -305,7 +450,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private File saveBitmap(Context context, View linearLayoutView, String media)
+    private File saveBitmap(View view, String media)
     {
         if(media.equals("image"))
         {
@@ -347,10 +492,11 @@ public class MainActivity extends AppCompatActivity
 
         File pictureFile = new File(fileName);
 
-        bitmap = getBitmapFromView(linearLayoutView);
+        bitmap = getBitmapFromView(view);
 
         if(media.equals("image"))
         {
+
             try
             {
                 pictureFile.createNewFile();
@@ -361,12 +507,13 @@ public class MainActivity extends AppCompatActivity
             }
             catch (IOException e)
             {
+
                 progressDialog.dismiss();
                 Log.d(TAG, "saveBitmap: "+e);
             }
         }
 
-        scanGallery(context, pictureFile.getAbsolutePath());
+//        scanGallery(context, pictureFile.getAbsolutePath());
 
         return pictureFile;
     }
@@ -374,9 +521,10 @@ public class MainActivity extends AppCompatActivity
     //create bitmap from view and returns it
     private Bitmap getBitmapFromView(View view)
     {
+
         Bitmap returnedBitmap = Bitmap.createBitmap(
-                scrollView.getChildAt(0).getWidth(),
-                scrollView.getChildAt(0).getHeight(),
+                view.getWidth(),
+                view.getHeight(),
                 Bitmap.Config.ARGB_8888
         );
 
@@ -528,6 +676,103 @@ public class MainActivity extends AppCompatActivity
             progressDialog.dismiss();
             Toast.makeText(getApplicationContext(), "WhatsApp Not Installed, Please Install Whatsapp", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    //dynamic testing pdf
+
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    private File createPdf()
+    {
+        pictureDirectory = new File(Environment.getExternalStorageDirectory() + "/SendDataWhatsApp/PDF");
+
+//        File pictureDirectory = new File(Environment.getExternalStorageDirectory() + "/SendDataWhatsApp");
+
+        if(!pictureDirectory.exists())
+        {
+            pictureDirectory.mkdirs();
+        }
+
+        Date c = Calendar.getInstance().getTime();
+        System.out.println("Current time => " + c);
+
+        String dateAndTime = String.valueOf(c);
+
+        String[] temp = dateAndTime.split(" ");
+
+        System.out.println("Current timsse => " + Arrays.toString(temp));
+
+        date = temp[2] +"_"+ temp[1] +"_" + temp[5];
+
+        String time = temp[3];
+
+        String[] temptime = time.split(":");
+
+        finalTime = temptime[0] + "_" + temptime[1] + "_" + temptime[2];
+
+        String fileName = pictureDirectory.getPath() +File.separator+ "Gautam_"+date+"_"+finalTime+".pdf";
+
+        File pictureFile = new File(fileName);
+
+        try 
+        {
+            OutputStream output = new FileOutputStream(pictureFile);
+            Document document = new Document(PageSize.A4);
+            PdfPTable table = new PdfPTable(new float[]{3, 3, 3, 3});
+            table.getDefaultCell().setHorizontalAlignment(Element.ALIGN_CENTER);
+            table.getDefaultCell().setFixedHeight(50);
+            table.setTotalWidth(PageSize.A4.getWidth());
+            table.setWidthPercentage(100);
+            table.getDefaultCell().setVerticalAlignment(Element.ALIGN_MIDDLE);
+            table.addCell("Date");
+            table.addCell("Particulers");
+            table.addCell("Payment");
+            table.addCell("Credit");
+            table.setHeaderRows(1);
+            PdfPCell[] cells = table.getRow(0).getCells();
+            
+            for (int j = 0; j < cells.length; j++)
+            {
+                cells[j].setBackgroundColor(BaseColor.LIGHT_GRAY);
+            }
+
+
+            for (int i = 0; i < transactionDataInfoArrayList.size(); i++)
+            {
+                TransactionDataInfo transactionDataInfo = transactionDataInfoArrayList.get(i);
+
+                Log.d(TAG, "createPdf: "+transactionDataInfo.getCredit());
+
+                table.addCell(transactionDataInfo.getDate());
+                table.addCell(transactionDataInfo.getParticulers());
+                table.addCell(transactionDataInfo.getPayment());
+                table.addCell(transactionDataInfo.getCredit());
+            }
+
+            PdfWriter.getInstance(document, output);
+            document.open();
+            Font f = new Font(Font.FontFamily.TIMES_ROMAN, 30.0f, Font.UNDERLINE, BaseColor.BLUE);
+            Font g = new Font(Font.FontFamily.TIMES_ROMAN, 20.0f, Font.NORMAL, BaseColor.BLUE);
+
+            Bitmap bitmap11 = BitmapFactory.decodeResource(getResources(), R.drawable.logo);
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            bitmap11.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+            byte[] bitMapData = stream.toByteArray();
+            Image image = Image.getInstance(bitMapData);
+            image.setAlignment(Element.ALIGN_CENTER);
+
+            document.add(image);
+            document.add(table);
+            document.add(image);
+            
+            document.close();
+            
+        }
+        catch (Exception e) 
+        {
+            e.printStackTrace();
+        }
+
+        return pictureFile;
     }
 
 //    Toast Message Method

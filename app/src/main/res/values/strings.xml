@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Send Data On WhatsApp</string>
+
+    <string name="Rs">\u20B9</string>
 </resources>
